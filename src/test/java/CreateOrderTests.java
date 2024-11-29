@@ -4,13 +4,13 @@ import diplom2.User;
 import diplom2.UserClient;
 import io.qameta.allure.Step;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static diplom2.UserGenerator.randomUser;
+import java.util.List;
+
 import static org.apache.http.HttpStatus.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -20,36 +20,37 @@ public class CreateOrderTests {
     private UserClient userClient;
     private OrderClient orderClient;
     private String accessToken;
+    private List<String> validIngredientIds;
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site/";
         userClient = new UserClient();
         orderClient = new OrderClient();
+        Response ingredientsResponse = orderClient.getIngredients();
+        verifySuccessfulGetIngredients(ingredientsResponse);
+        validIngredientIds = extractIngredientIds(ingredientsResponse);
     }
 
     @Test
     @DisplayName("Создание заказа с авторизацией")
     public void createOrderWithAuthorization() {
-        User user = createAndLoginUser();
-        Order order = createOrder(new String[]{"61c0c5a71d1f82001bdaaa6d"});
-        Response response = attemptToCreateOrder(order);
+        User user = userClient.createAndLoginUser();
+        accessToken = userClient.getAccessToken();
+
+        Order order = OrderClient.createOrder(validIngredientIds.toArray(new String[0]));
+        Response response = orderClient.createOrder(order);
         verifySuccessfulOrderCreation(response);
     }
 
-    @Step("Создаем и авторизуем пользователя")
-    private User createAndLoginUser() {
-        User user = randomUser();
-        userClient.create(user);
-        Response loginResponse = userClient.login(user);
-        accessToken = loginResponse.jsonPath().getString("accessToken");
-        user.setToken(accessToken);
-        return user;
+    @Step("Проверяем успешное получение ингредиентов")
+    private void verifySuccessfulGetIngredients(Response response) {
+        assertEquals("Неверный статус код", SC_OK, response.statusCode());
+        String responseBody = response.getBody().asString();
+        assertTrue(responseBody.contains("true"));
     }
 
-    @Step("Пытаемся создать заказ")
-    private Response attemptToCreateOrder(Order order) {
-        return orderClient.createOrder(order);
+    private List<String> extractIngredientIds(Response response) {
+        return response.jsonPath().getList("data._id");
     }
 
     @Step("Проверяем успешное создание заказа")
@@ -62,8 +63,8 @@ public class CreateOrderTests {
     @Test
     @DisplayName("Создание заказа без авторизации")
     public void createOrderWithoutAuthorization() {
-        Order order = createOrder(new String[]{"61c0c5a71d1f82001bdaaa6d"});
-        Response response = attemptToCreateOrder(order);
+        Order order = OrderClient.createOrder(validIngredientIds.toArray(new String[0]));
+        Response response = orderClient.createOrder(order);
         verifyBadRequestResponse(response, SC_BAD_REQUEST);
     }
 
@@ -75,18 +76,22 @@ public class CreateOrderTests {
     @Test
     @DisplayName("Создание заказа с ингредиентами")
     public void createOrderWithIngredients() {
-        User user = createAndLoginUser();
-        Order order = createOrder(new String[]{"61c0c5a71d1f82001bdaaa6d"});
-        Response response = attemptToCreateOrder(order);
+        User user = userClient.createAndLoginUser();
+        accessToken = userClient.getAccessToken();
+
+        Order order = OrderClient.createOrder(validIngredientIds.toArray(new String[0]));
+        Response response = orderClient.createOrder(order);
         verifySuccessfulOrderCreation(response);
     }
 
     @Test
     @DisplayName("Создание заказа без ингредиентов")
     public void createOrderWithoutIngredients() {
-        User user = createAndLoginUser();
-        Order order = createOrder(new String[]{});
-        Response response = attemptToCreateOrder(order);
+        User user = userClient.createAndLoginUser();
+        accessToken = userClient.getAccessToken();
+
+        Order order = OrderClient.createOrder(new String[]{});
+        Response response = orderClient.createOrder(order);
         verifyBadRequestResponse(response, SC_BAD_REQUEST);
         String responseBody = response.getBody().asString();
         assertTrue(responseBody.contains("Ingredient ids must be provided"));
@@ -95,17 +100,13 @@ public class CreateOrderTests {
     @Test
     @DisplayName("Создание заказа с неверным хешем ингредиентов")
     public void createOrderWithInvalidIngredientHash() {
-        User user = createAndLoginUser();
-        Order order = createOrder(new String[]{"61c0c5a71d1f82001bd"});
-        Response response = attemptToCreateOrder(order);
-        verifyBadRequestResponse(response, SC_INTERNAL_SERVER_ERROR);
-    }
+        User user = userClient.createAndLoginUser();
+        accessToken = userClient.getAccessToken();
 
-    @Step("Создаем заказ")
-    private Order createOrder(String[] ingredientIds) {
-        Order order = new Order();
-        order.setIngredients(ingredientIds);
-        return order;
+        String[] invalidIngredientIds = new String[]{"0123"};
+        Order order = OrderClient.createOrder(invalidIngredientIds);
+        Response response = orderClient.createOrder(order);
+        verifyBadRequestResponse(response, SC_INTERNAL_SERVER_ERROR);
     }
 
     @After

@@ -2,7 +2,6 @@ import diplom2.User;
 import diplom2.UserClient;
 import io.qameta.allure.Step;
 import io.qameta.allure.junit4.DisplayName;
-import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.After;
 import org.junit.Before;
@@ -21,24 +20,18 @@ public class CreateUserTests {
 
     @Before
     public void setUp() {
-        RestAssured.baseURI = "https://stellarburgers.nomoreparties.site/";
         userClient = new UserClient();
     }
 
     @Test
     @DisplayName("Создание пользователя")
     public void createUser() {
-        User user = createRandomUser();
+        User user = randomUser();
         Response response = createUserAndAssert(user, SC_OK);
         verifyResponseContainsTrue(response);
         Response loginResponse = userClient.login(user);
         assertEquals("Не удалось авторизовать пользователя", SC_OK, loginResponse.statusCode());
         accessToken = loginResponse.jsonPath().getString("accessToken");
-    }
-
-    @Step("Создаем случайного пользователя")
-    private User createRandomUser() {
-        return randomUser();
     }
 
     @Step("Создаем пользователя и проверяем статус")
@@ -57,8 +50,7 @@ public class CreateUserTests {
     @Test
     @DisplayName("Создание двух идентичных пользователей")
     public void createTwoIdenticalUsers() {
-        User user = createRandomUser();
-
+        User user = randomUser();
         Response firstResponse = createUserAndAssert(user, SC_OK);
         Response loginResponse = userClient.login(user);
         Response secondResponse = createUserAndAssert(user, SC_FORBIDDEN);
@@ -75,7 +67,7 @@ public class CreateUserTests {
     @DisplayName("Создание пользователя без email")
     public void createUserWithoutLogin() {
         User user = createRandomUserWithMissingField(null, "password", "name");
-        Response response = attemptToCreateUser(user);
+        Response response = userClient.create(user);
         verifyBadRequestResponse(response, "Email, password and name are required fields");
     }
 
@@ -94,11 +86,6 @@ public class CreateUserTests {
         return user;
     }
 
-    @Step("Пытаемся создать пользователя")
-    private Response attemptToCreateUser(User user) {
-        return userClient.create(user);
-    }
-
     @Step("Проверяем сообщение об ошибке")
     private void verifyBadRequestResponse(Response response, String expectedMessage) {
         assertEquals("Неверный статус код", SC_FORBIDDEN, response.statusCode());
@@ -110,7 +97,7 @@ public class CreateUserTests {
     @DisplayName("Создание пользователя без пароля")
     public void createCourierWithoutPassword() {
         User user = createRandomUserWithMissingField("email", null, "name");
-        Response response = attemptToCreateUser(user);
+        Response response = userClient.create(user);
         verifyBadRequestResponse(response, "Email, password and name are required fields");
     }
 
@@ -118,7 +105,7 @@ public class CreateUserTests {
     @DisplayName("Создание пользователя без имени")
     public void createUserWithoutName() {
         User user = createRandomUserWithMissingField("email", "password", null);
-        Response response = attemptToCreateUser(user);
+        Response response = userClient.create(user);
         verifyBadRequestResponse(response, "Email, password and name are required fields");
     }
 

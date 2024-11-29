@@ -1,52 +1,70 @@
 package diplom2;
 
+import io.qameta.allure.Step;
 import io.restassured.response.Response;
 
 import static diplom2.UserCreds.credsFromUser;
-import static io.restassured.RestAssured.given;
+import static diplom2.UserGenerator.randomUser;
 
 public class UserClient {
 
+    private static final String AUTH_REGISTER_ENDPOINT = "/api/auth/register";
+    private static final String AUTH_LOGIN_ENDPOINT = "/api/auth/login";
+    private static final String AUTH_USER_ENDPOINT = "/api/auth/user/";
+    private String accessToken;
+
+    @Step("Создание и авторизация пользователя")
+    public User createAndLoginUser() {
+        User user = randomUser();
+        create(user);
+        login(user);
+        return user;
+    }
+
+    public String getAccessToken() {
+        return accessToken;
+    }
+
+    @Step("Создание пользователя")
     public Response create(User user) {
-        return given()
-                .header("Content-type", "application/json")
-                .and()
+        return RestClient.getRequestSpecification()
                 .body(user)
                 .when()
-                .post("api/auth/register");
+                .post(AUTH_REGISTER_ENDPOINT);
     }
 
+    @Step("Авторизация пользователя")
     public Response login(User user) {
-        return given()
-                .header("Content-type", "application/json")
-                .and()
+        Response loginResponse = RestClient.getRequestSpecification()
                 .body(credsFromUser(user))
                 .when()
-                .post("api/auth/login");
+                .post(AUTH_LOGIN_ENDPOINT);
+        accessToken = loginResponse.jsonPath().getString("accessToken");  // Сохраняем токен
+        return loginResponse;
     }
 
+    @Step("Удаление пользователя")
     public Response delete(String accessToken) {
-        return given()
-                .header("Content-type", "application/json")
+        return RestClient.getRequestSpecification()
                 .header("Authorization", accessToken)
                 .when()
-                .delete("api/auth/user/");
+                .delete(AUTH_USER_ENDPOINT);
     }
 
+    @Step("Изменение данных пользователя")
     public Response change(String accessToken, User updatedUser) {
-        return given()
-                .header("Content-type", "application/json")
+        return RestClient.getRequestSpecification()
                 .header("Authorization", accessToken)
                 .body(updatedUser)
                 .when()
-                .patch("api/auth/user");
+                .patch(AUTH_USER_ENDPOINT);
     }
 
+    @Step("Изменение данных пользователя")
     public Response change(User updatedUser) {
-        return given()
-                .header("Content-type", "application/json")
+        return RestClient.getRequestSpecification()
                 .body(updatedUser)
                 .when()
-                .patch("api/auth/user");
+                .patch(AUTH_USER_ENDPOINT);
     }
 }
